@@ -1,0 +1,142 @@
+---
+title: "Forecasting UK Train Delays"
+author: "Phyo Ung"
+date: "March 2026"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab 
+    highlight: tango
+---
+
+
+```{r, echo=FALSE}
+# This code will display the QMUL logo at the top right of the page
+htmltools::img(src = knitr::image_uri("images/QMlogo.png"),
+               alt = 'logo',
+               style = 'position:absolute; top:0; right:0; padding:10px; width:20%;')
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Load library
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(prophet)
+```
+
+# Introduction
+Train delays can be frustrating for passengers. When a train does not arrive at the planned time, passengers may need to adjust their plans or schedules, which can cause inconvenience.
+
+In this project, I analyse train delay data using the Prophet forecasting to identify patterns in the future train delays.
+
+
+# Data
+The dataset used in this project is obtained from the Ofiice of Rail and Road. Table 3184 contains delay minutes for train, reported every four weeks and categorised by cause of delay.
+
+```{r, echo=FALSE}
+rail <- read_csv("Table3184.csv")
+```
+
+## Data preparation
+```{r, echo=FALSE}
+total_delay <- rail %>%
+  group_by(`time period`) %>%
+  summarise(
+    y = sum(
+      `NR on TOC External` +
+      `NR on TOC Network Management Other`,
+      na.rm = TRUE
+    )
+  )
+
+names(total_delay)[1] <- "ds"
+
+total_delay$ds <- seq(
+  from = as.Date("2019-04-01"),
+  by = "4 weeks",
+  length.out = nrow(total_delay)
+)
+
+head(total_delay)
+```
+
+
+# Exploratory analysis
+```{r, echo=FALSE}
+ggplot(total_delay, aes(x = ds, y = y)) +
+  geom_line() +
+  labs(
+    title = "Total UK Rail Delay Minutes Over Time",
+    x = "Date",
+    y = "Delay minutes"
+  )
+```
+
+The plot shows a noticeable trend in the total delay minutes over time. There is a significant drop in train delay minutes during 2020, which may be due to the reduction in train services during the COVID-19 pandemic. As time progresses, the delay minutes begin to increase again.
+
+
+# Prophet model
+The Prophet model is fitted to the train delay time series to forecast future delays by capturing trends and seasonal patterns in the data.
+
+```{r, echo=FALSE}
+delay_model <- prophet(total_delay)
+```
+
+
+# Forecast
+The forecast below shows the predicted total delay minutes for future periods with uncertainty intervals.
+
+```{r, echo=FALSE}
+future_dates <- make_future_dataframe(delay_model, periods = 12)
+
+delay_forecast <- predict(delay_model, future_dates)
+```
+
+## Forecast plot
+```{r, echo=FALSE}
+plot(delay_model, delay_forecast,
+     main = "Forecast of Total UK Rail Delay Minutes",
+     xlab = "Date",
+     ylab = "Delay minutes")
+```
+
+The Blue line gives the expected delay minutes, and the shaded area reflects uncertainty in the predictions. This provides an range with which future train delays may fall.
+
+## Forecast components
+```{r, echo=FALSE}
+prophet_plot_components(delay_model, delay_forecast)
+```
+
+The components plot helps show the trend and any seasonal patterns identified by the model. This makes it easier to understand how Prophet builds the forecast.
+
+
+# Comparison model
+The second Prophet model is fitted without yearly seasonality
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+delay_model_no_yearly <- prophet(total_delay, yearly.seasonality = FALSE)
+
+future_dates_2 <- make_future_dataframe(delay_model_no_yearly, periods = 12)
+
+delay_forecast_2 <- predict(delay_model_no_yearly, future_dates_2)
+
+plot(delay_model_no_yearly, delay_forecast_2)
+```
+
+The comparison model confirms the interpretation from the exploratory analysis. The forecast shows that the total minutes of train delay generally increase over time, reflecting the upward trend observed in the earlier plot.
+
+
+# Conclusion
+This project analysed total train delay minutes using the Prophet forecasting model. The exploratory analysis showed a noticeable drop in delay minutes around 2020, likely due to the reduction in train services during the COVID-19 lockdown. After this period, delay minutes generally increased over time.
+
+The Prophet model was then fitted to the data to forecast results shows that train delays may continue to follow an upward trend, reflecting the pattern in the historical data. The model capture underlying trends and seasonal patterns.
+
+Overall, this project demonstrates how Prophet can be used for analysing data and generating forecasts. While the model provides useful insights, the forecasts are based solely on historical patterns and exclude weather condition, infrastructure improvements or unexpected disruptions. Future analysis can explore additional variables to gain deeper insights into train delay patterns.
+
+
+# References
+- Datacamp course: <https://www.datacamp.com/courses/reporting-with-rmarkdown>
+- RStudio reference: <https://rmarkdown.rstudio.com/lesson-1.html>
+- More sophisticated reference: <https://bookdown.org/yihui/rmarkdown/>
